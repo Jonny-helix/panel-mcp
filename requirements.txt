@@ -1,2 +1,4 @@
+# mcp is pinned deliberately: 2.0.0 removed mcp.server.fastmcp (see closed PR #1).
+# Moving to 2.x requires a code migration, not just a version bump.
 mcp==1.29.0
 httpx>=0.27.0
