@@ -48,8 +48,6 @@ DEFAULT_ROLE = (
 
 # Slugs drift. These are a starting point only — call panel_models to see what currently
 # resolves, and pass an explicit `models` list rather than trusting this default.
-# Slugs drift. These are a starting point only — call panel_models to see what currently
-# resolves, and pass an explicit `models` list rather than trusting this default.
 DEFAULT_PANEL = [
     "openai/gpt-5.5",
     "google/gemini-3.1-pro-preview",
