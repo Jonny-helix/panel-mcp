@@ -93,7 +93,7 @@ async def _call_one(client: httpx.AsyncClient, model: str, document: str, role: 
     }
     try:
         r = await client.post(
-            f"{OPENROUTER_BASE}/chat/completions",
+            f"{AI_GATEWAY_BASE}/chat/completions",
             headers=_headers(), json=payload, timeout=300,
         )
         r.raise_for_status()
@@ -124,7 +124,7 @@ async def panel_models(filter: str = "") -> dict:
     to match a substring, e.g. 'deepseek' or 'gemini'.
     """
     async with httpx.AsyncClient() as client:
-        r = await client.get(f"{OPENROUTER_BASE}/models", headers=_headers(), timeout=60)
+        r = await client.get(f"{AI_GATEWAY_BASE}/models", headers=_headers(), timeout=60)
         r.raise_for_status()
         rows = r.json().get("data", [])
     slugs = sorted(m["id"] for m in rows)
