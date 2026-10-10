@@ -21,15 +21,15 @@ import uuid
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+AI_GATEWAY_BASE = "https://ai-gateway.vercel.sh/v1"
 
 # Read lazily, not at import. Reading at import means a missing variable kills the
 # process on startup and the host crash-loops with an error that points at the wrong thing.
 def _api_key() -> str:
-    key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    key = os.environ.get("AI_GATEWAY_API_KEY", "").strip()
     if not key:
         raise RuntimeError(
-            "OPENROUTER_API_KEY is not set on this server. Add it in the host's "
+            "AI_GATEWAY_API_KEY is not set on this server. Add it in the host's "
             "environment variables and redeploy."
         )
     return key
@@ -206,13 +206,13 @@ async def panel_status(job_id: str) -> dict:
 @mcp.tool()
 async def panel_health() -> dict:
     """Confirm the server is reachable and configured. Call this first after deploying."""
-    key_set = bool(os.environ.get("OPENROUTER_API_KEY", "").strip())
+    key_set = bool(os.environ.get("AI_GATEWAY_API_KEY", "").strip())
     return {
         "server": "panel-review",
         "reachable": True,
-        "openrouter_key_set": key_set,
+        "ai_gateway_key_set": key_set,
         "message": "Ready." if key_set else
-                   "Server is up but OPENROUTER_API_KEY is not set. Add it and redeploy.",
+                   "Server is up but AI_GATEWAY_API_KEY is not set. Add it and redeploy.",
         "limits": {"max_doc_chars": MAX_DOC_CHARS, "max_models": MAX_MODELS,
                    "max_calls_per_day": MAX_CALLS_PER_DAY},
     }
