@@ -62,6 +62,9 @@ DEFAULT_PANEL = [
 MAX_DOC_CHARS = int(os.environ.get("PANEL_MAX_DOC_CHARS", "400000"))
 MAX_MODELS = int(os.environ.get("PANEL_MAX_MODELS", "6"))
 MAX_CALLS_PER_DAY = int(os.environ.get("PANEL_MAX_CALLS_PER_DAY", "200"))
+# Output cap per model call (includes any reasoning tokens). Long deliverables and
+# reasoning models need far more than the old 8,000-token ceiling.
+MAX_OUTPUT_TOKENS = int(os.environ.get("PANEL_MAX_OUTPUT_TOKENS", "32000"))
 
 _calls: dict[str, int] = {}
 JOBS: dict[str, dict] = {}
@@ -93,11 +96,12 @@ async def _call_one(client: httpx.AsyncClient, model: str, document: str, role: 
             {"role": "system", "content": role},
             {"role": "user", "content": document},
         ],
+        "max_tokens": MAX_OUTPUT_TOKENS,
     }
     try:
         r = await client.post(
             f"{AI_GATEWAY_BASE}/chat/completions",
-            headers=_headers(), json=payload, timeout=300,
+            headers=_headers(), json=payload, timeout=900,
         )
         r.raise_for_status()
         data = r.json()
@@ -217,7 +221,8 @@ async def panel_health() -> dict:
         "message": "Ready." if key_set else
                    "Server is up but AI_GATEWAY_API_KEY is not set. Add it and redeploy.",
         "limits": {"max_doc_chars": MAX_DOC_CHARS, "max_models": MAX_MODELS,
-                   "max_calls_per_day": MAX_CALLS_PER_DAY},
+                   "max_calls_per_day": MAX_CALLS_PER_DAY,
+                   "max_output_tokens": MAX_OUTPUT_TOKENS},
     }
 
 
