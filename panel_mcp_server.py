@@ -14,6 +14,7 @@ Tools exposed:
 """
 
 import asyncio
+import json
 import os
 import time
 import uuid
@@ -65,6 +66,9 @@ MAX_CALLS_PER_DAY = int(os.environ.get("PANEL_MAX_CALLS_PER_DAY", "200"))
 # Output cap per model call (includes any reasoning tokens). Long deliverables and
 # reasoning models need far more than the old 8,000-token ceiling.
 MAX_OUTPUT_TOKENS = int(os.environ.get("PANEL_MAX_OUTPUT_TOKENS", "32000"))
+# Per-model time limits (seconds): overall cap, and the longest silence allowed while streaming.
+CALL_TIMEOUT_S = float(os.environ.get("PANEL_CALL_TIMEOUT_S", "1500"))
+READ_IDLE_S = float(os.environ.get("PANEL_READ_IDLE_S", "600"))
 
 _calls: dict[str, int] = {}
 JOBS: dict[str, dict] = {}
@@ -90,6 +94,9 @@ def _spend_guard(n_models: int, doc: str) -> str | None:
 
 
 async def _call_one(client: httpx.AsyncClient, model: str, document: str, role: str):
+    """Stream the response. Slow reasoning models were cut off at about 340 s when the
+    reply came back in one piece (the gateway drops a silent connection); a stream keeps
+    the connection busy, so only the overall cap applies."""
     payload = {
         "model": model,
         "messages": [
@@ -97,22 +104,47 @@ async def _call_one(client: httpx.AsyncClient, model: str, document: str, role: 
             {"role": "user", "content": document},
         ],
         "max_tokens": MAX_OUTPUT_TOKENS,
+        "stream": True,
     }
+    parts: list[str] = []
+    used = model
+    async def _stream():
+        nonlocal used
+        timeout = httpx.Timeout(READ_IDLE_S, connect=30.0)
+        async with client.stream(
+            "POST", f"{AI_GATEWAY_BASE}/chat/completions",
+            headers=_headers(), json=payload, timeout=timeout,
+        ) as r:
+            if r.status_code >= 400:
+                body = (await r.aread()).decode("utf-8", "replace")[:500]
+                raise RuntimeError(f"HTTP {r.status_code}: {body}")
+            async for line in r.aiter_lines():
+                if not line.startswith("data:"):
+                    continue
+                chunk = line[5:].strip()
+                if not chunk or chunk == "[DONE]":
+                    continue
+                try:
+                    data = json.loads(chunk)
+                except ValueError:
+                    continue
+                used = data.get("model", used) or used
+                for ch in data.get("choices") or []:
+                    piece = (ch.get("delta") or {}).get("content")
+                    if piece:
+                        parts.append(piece)
+
     try:
-        r = await client.post(
-            f"{AI_GATEWAY_BASE}/chat/completions",
-            headers=_headers(), json=payload, timeout=900,
-        )
-        r.raise_for_status()
-        data = r.json()
-        text = data["choices"][0]["message"]["content"]
-        used = data.get("model", model)
-        # Report the model that actually answered, not the one requested. OpenRouter can
-        # route to a different provider, and a register that names the wrong critic is worse
-        # than one that admits uncertainty.
+        await asyncio.wait_for(_stream(), timeout=CALL_TIMEOUT_S)
+        text = "".join(parts)
+        if not text.strip():
+            raise RuntimeError("empty response from the model")
+        # Report the model that actually answered, not the one requested.
         return model, {"ok": True, "model_reported": used, "findings": text}
     except Exception as e:  # noqa: BLE001 — one model failing must not kill the panel
-        return model, {"ok": False, "model_reported": None, "findings": f"[ERROR] {e}"}
+        partial = "".join(parts)
+        note = f"[ERROR] {type(e).__name__}: {e}" + (f"\n\n[PARTIAL RESPONSE BEFORE THE ERROR]\n{partial}" if partial else "")
+        return model, {"ok": False, "model_reported": None, "findings": note}
 
 
 async def _run_panel(document: str, models: list[str], role: str) -> dict:
