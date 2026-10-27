@@ -1,0 +1,7 @@
+{
+  "_how_to_use": "One line per client: client name (lower case) -> inference zone. Allowed zones: us, eu, au, jp. Change a client's zone ONLY after agreeing it with the client. A client not listed here uses _default. Calls with no client are internal work and route to the cheapest provider in any region.",
+  "_default": "eu",
+  "medstar": "us",
+  "mantle": "eu",
+  "yulia": "eu"
+}
