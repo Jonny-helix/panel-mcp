@@ -43,6 +43,17 @@ resolve — the defaults in the file will drift and should not be trusted.
 | `PANEL_MAX_MODELS` | 6 | Caps models per call. |
 | `PANEL_MAX_CALLS_PER_DAY` | 200 | Daily spend guard. |
 
+## Internal and client routing
+
+- **Internal work** — call the review tools with no `client`. Any model, any region, cheapest provider first.
+- **Client material** — always pass `client` (for example `client="mantle"`). The server looks up the client's
+  zone in `client_regions.json`, pins inference there with zero data retention and no prompt training, checks
+  each model can serve that zone, and records the zone the gateway reports on each verdict.
+  A client not in the file uses `_default` (eu). Models that cannot serve the zone are skipped with a note and
+  the rest of the panel runs; nothing is ever routed outside the zone.
+- **Changing a client's zone** — edit `client_regions.json` and commit, only after agreeing the change with the client.
+- `panel_models(client="mantle")` lists eligible models; `panel_models(open_weights=True, detailed=True)` adds prices.
+
 ## Two things to know
 
 **Spend exposure.** This endpoint spends your OpenRouter key and the URL is the only thing
